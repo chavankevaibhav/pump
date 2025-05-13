@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize, root_scalar
 import math
 
-# --- PumpAnalysis Class (Same as provided) ---
+# --- PumpAnalysis Class ---
 class PumpAnalysis:
     def __init__(self):
         # Pump characteristics (can be loaded from file/database in real application)
@@ -29,23 +29,23 @@ class PumpAnalysis:
         # Fluid properties (water by default)
         # Added vapor pressure
         self.fluid = {
-            'density': 1000,    # kg/m³
+            'density': 1000.0,    # kg/m³ - Changed to float
             'viscosity': 0.001, # Pa·s (dynamic viscosity)
-            'vapor_pressure': 2340 # Pa (at 20°C for water)
+            'vapor_pressure': 2340.0 # Pa (at 20°C for water) - Changed to float
         }
 
         # System properties
         # Added pipe roughness, atmospheric pressure, suction static level, suction pipe details
         # Added minor loss K-factors
         self.system = {
-            'static_head_discharge': 10, # meters (static head from pump centerline to discharge point)
-            'static_head_suction': -2,   # meters (static head from pump centerline to suction liquid level, negative for suction lift)
+            'static_head_discharge': 10.0, # meters - Changed to float
+            'static_head_suction': -2.0,   # meters - Changed to float
             'pipe_diameter_discharge': 0.1, # meters
-            'pipe_length_discharge': 80, # meters
+            'pipe_length_discharge': 80.0, # meters - Changed to float
             'pipe_diameter_suction': 0.1, # meters
-            'pipe_length_suction': 20,   # meters
-            'pipe_roughness': 0.00005, # meters (for new steel pipe, adjust as needed)
-            'atmospheric_pressure': 101325, # Pa (standard atmospheric pressure)
+            'pipe_length_suction': 20.0,   # meters - Changed to float
+            'pipe_roughness': 0.00005, # meters
+            'atmospheric_pressure': 101325.0, # Pa - Changed to float
             'minor_losses_discharge': { # Dictionary of fitting type and quantity on discharge side
                 'elbow_std': 4,
                 'gate_valve_full_open': 1
@@ -68,31 +68,31 @@ class PumpAnalysis:
     def convert_flow_rate(self, flow_rate_m3h, to_unit='m3/s'):
         """Converts flow rate between m³/h and m³/s"""
         if to_unit == 'm3/s':
-            return flow_rate_m3h / 3600
+            return np.array(flow_rate_m3h) / 3600.0 # Ensure float division
         elif to_unit == 'm3/h':
-            return flow_rate_m3h * 3600
+            return np.array(flow_rate_m3h) * 3600.0 # Ensure float multiplication
         else:
             raise ValueError("Invalid unit. Use 'm3/s' or 'm3/h'.")
 
     def calculate_velocity(self, flow_rate_m3h, diameter):
         """Calculate fluid velocity in pipe"""
         flow_rate_m3s = self.convert_flow_rate(flow_rate_m3h, 'm3/s')
-        area = np.pi * (diameter/2)**2
-        if area <= 0: return 0
+        area = np.pi * (diameter/2.0)**2 # Ensure float division
+        if area <= 0: return 0.0
         return flow_rate_m3s / area
 
     def calculate_reynolds_number(self, flow_rate_m3h, diameter):
         """Calculate Reynolds number"""
         velocity = self.calculate_velocity(flow_rate_m3h, diameter)
-        if diameter <= 0 or self.fluid['viscosity'] <= 0: return 0
+        if diameter <= 0 or self.fluid['viscosity'] <= 0: return 0.0
         Re = (self.fluid['density'] * velocity * diameter) / self.fluid['viscosity']
         return Re
 
     def calculate_friction_factor_haaland(self, Re, roughness, diameter):
         """Calculate friction factor using Haaland approximation"""
-        if Re <= 0: return 0 # No flow, no friction
+        if Re <= 0: return 0.0 # No flow, no friction
         if Re < 2000: # Laminar flow
-            return 64 / Re
+            return 64.0 / Re # Ensure float division
         else: # Turbulent flow (Haaland approximation)
             e_D = roughness / diameter # Relative roughness
             # Ensure the term inside log10 is positive
@@ -111,25 +111,25 @@ class PumpAnalysis:
     def calculate_pipe_friction_loss(self, flow_rate_m3h, length, diameter, roughness):
         """Calculate friction head loss in a pipe section (major losses)"""
         flow_rate_m3s = self.convert_flow_rate(flow_rate_m3h, 'm3/s')
-        if flow_rate_m3s <= 0 or diameter <= 0 or length <= 0 or self.g <= 0: return 0
+        if flow_rate_m3s <= 0 or diameter <= 0 or length <= 0 or self.g <= 0: return 0.0
 
         velocity = self.calculate_velocity(flow_rate_m3h, diameter)
         Re = self.calculate_reynolds_number(flow_rate_m3h, diameter)
         f = self.calculate_friction_factor_haaland(Re, roughness, diameter)
 
-        friction_loss = (f * (length / diameter) * (velocity**2) / (2 * self.g))
+        friction_loss = (f * (length / diameter) * (velocity**2) / (2.0 * self.g)) # Ensure float division
         return friction_loss
 
     def calculate_minor_losses(self, flow_rate_m3h, diameter, minor_loss_dict):
         """Calculate minor head losses due to fittings"""
-        if flow_rate_m3h <= 0 or diameter <= 0 or self.g <= 0: return 0
+        if flow_rate_m3h <= 0 or diameter <= 0 or self.g <= 0: return 0.0
 
         velocity = self.calculate_velocity(flow_rate_m3h, diameter)
-        velocity_head = (velocity**2) / (2 * self.g)
-        total_minor_loss_k = 0
+        velocity_head = (velocity**2) / (2.0 * self.g) # Ensure float division
+        total_minor_loss_k = 0.0
 
         for fitting_type, quantity in minor_loss_dict.items():
-            k_factor = self.system['fitting_k_factors'].get(fitting_type, 0) # Get K-factor, default to 0 if not found
+            k_factor = self.system['fitting_k_factors'].get(fitting_type, 0.0) # Get K-factor, default to 0.0 if not found
             total_minor_loss_k += k_factor * quantity
 
         minor_loss = total_minor_loss_k * velocity_head
@@ -177,7 +177,7 @@ class PumpAnalysis:
 
     def calculate_npsha(self, flow_rate_m3h):
         """Calculate Net Positive Suction Head Available (NPSHa)"""
-        if self.fluid['density'] <= 0 or self.g <= 0: return 0 # Avoid division by zero
+        if self.fluid['density'] <= 0 or self.g <= 0: return 0.0 # Avoid division by zero
 
         # Atmospheric head
         atmospheric_head = self.system['atmospheric_pressure'] / (self.fluid['density'] * self.g)
@@ -202,8 +202,8 @@ class PumpAnalysis:
         # Static suction head/lift (negative for lift, positive for head)
         # The system['static_head_suction'] is defined from pump centerline to liquid level.
         # NPSHa formula uses suction *lift* (positive if level is *below* centerline).
-        # So, if static_head_suction is negative (lift), suction_lift = -static_head_suction.
-        # If static_head_suction is positive (submerged), suction_lift = -static_head_suction.
+        # So, if static_head_suction is negative (lift), suction_lift = -self.system['static_head_suction'].
+        # If static_head_suction is positive (submerged), suction_lift = -self.system['static_head_suction'].
         suction_lift = -self.system['static_head_suction']
 
         # NPSHa = Ha - Hv - Hfs - Hz (where Hz is static lift)
@@ -232,8 +232,8 @@ class PumpAnalysis:
             if name in self.pump_curves:
                 pump = self.pump_curves[name]
                 # Create interpolation functions for each pump
-                head_interp = interp1d(pump['flow_rate'], pump['head'], kind='cubic', bounds_error=False, fill_value=0)
-                eff_interp = interp1d(pump['flow_rate'], pump['efficiency'], kind='cubic', bounds_error=False, fill_value=0)
+                head_interp = interp1d(pump['flow_rate'], pump['head'], kind='cubic', bounds_error=False, fill_value=0.0)
+                eff_interp = interp1d(pump['flow_rate'], pump['efficiency'], kind='cubic', bounds_error=False, fill_value=0.0)
 
                 # For series, heads add up at the same flow rate
                 head_at_flow = head_interp(combined_flow_range)
@@ -243,12 +243,12 @@ class PumpAnalysis:
                 # the combined efficiency is approx (Total Head) / sum(Head_i / Eff_i)
                 # A simpler approximation is a weighted average based on head
                 eff_at_flow = eff_interp(combined_flow_range)
-                combined_efficiency_sum += (eff_at_flow / 100) * head_at_flow # Convert efficiency to decimal
+                combined_efficiency_sum += (eff_at_flow / 100.0) * head_at_flow # Convert efficiency to decimal
                 total_head_sum += head_at_flow
 
         # Calculate weighted average efficiency
         # Avoid division by zero where total_head_sum is zero (usually at 0 flow)
-        combined_efficiency = np.where(total_head_sum > 0, (combined_efficiency_sum / total_head_sum) * 100, 0)
+        combined_efficiency = np.where(total_head_sum > 0, (combined_efficiency_sum / total_head_sum) * 100.0, 0.0)
 
 
         # NPSHr for series pumps: the NPSHr of the *first* pump in series matters most.
@@ -258,14 +258,14 @@ class PumpAnalysis:
         for name in pump_names:
              if name in self.pump_curves and 'npshr' in self.pump_curves[name]:
                  pump = self.pump_curves[name]
-                 npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0)
+                 npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0.0)
                  npshr_at_flow = npshr_interp(combined_flow_range)
                  combined_npshr = np.maximum(combined_npshr, npshr_at_flow) # Take the maximum NPSHr at each flow
 
         # Clean up negative values that might result from interpolation extrapolation
-        combined_head[combined_head < 0] = 0
-        combined_efficiency[combined_efficiency < 0] = 0
-        combined_npshr[combined_npshr < 0] = 0
+        combined_head[combined_head < 0] = 0.0
+        combined_efficiency[combined_efficiency < 0] = 0.0
+        combined_npshr[combined_npshr < 0] = 0.0
 
 
         return {
@@ -314,9 +314,9 @@ class PumpAnalysis:
                 # This avoids interpolating flow vs head directly if the head curve isn't monotonic.
 
                 # Let's use interpolation of Head vs Flow, and then find Flow for a given Head.
-                head_interp = interp1d(pump['flow_rate'], pump['head'], kind='cubic', bounds_error=False, fill_value=0)
-                eff_interp = interp1d(pump['flow_rate'], pump['efficiency'], kind='cubic', bounds_error=False, fill_value=0)
-                npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0)
+                head_interp = interp1d(pump['flow_rate'], pump['head'], kind='cubic', bounds_error=False, fill_value=0.0)
+                eff_interp = interp1d(pump['flow_rate'], pump['efficiency'], kind='cubic', bounds_error=False, fill_value=0.0)
+                npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0.0)
 
 
                 # For parallel, flow rates add up at the same head
@@ -353,18 +353,18 @@ class PumpAnalysis:
                                 npshr_at_head[i] = npshr_interp(res.x[0])
                             else:
                                 # If both fail, flow is 0 at this head for this pump
-                                flow_at_head[i] = 0
-                                eff_at_head[i] = 0
-                                npshr_at_head[i] = 0
+                                flow_at_head[i] = 0.0
+                                eff_at_head[i] = 0.0
+                                npshr_at_head[i] = 0.0
 
                     except Exception as e:
                          # Handle cases where interpolation might fail (e.g., head_val outside pump's head range)
                          # If head_val is above the pump's max head, flow is 0. If below min head, flow is max flow.
                          # This is a simplification, a proper check against the pump's head range is better.
                          # For now, if root finding fails, assume 0 flow.
-                         flow_at_head[i] = 0
-                         eff_at_head[i] = 0
-                         npshr_at_head[i] = 0
+                         flow_at_head[i] = 0.0
+                         eff_at_head[i] = 0.0
+                         npshr_at_head[i] = 0.0
 
 
                 combined_flow += flow_at_head
@@ -387,8 +387,8 @@ class PumpAnalysis:
         # Combined Efficiency = (density * g * combined_flow * combined_head_range) / combined_power_sum
         # Need to handle cases where combined_power_sum is 0
         combined_efficiency = np.where(combined_power_sum > 0,
-                                       (self.fluid['density'] * self.g * (self.convert_flow_rate(combined_flow, 'm3/s')) * combined_head_range) / combined_power_sum * 100,
-                                       0)
+                                       (self.fluid['density'] * self.g * (self.convert_flow_rate(combined_flow, 'm3/s')) * combined_head_range) / combined_power_sum * 100.0,
+                                       0.0)
 
         # NPSHr for parallel pumps: Each pump needs its required NPSHr met based on its *individual* flow rate.
         # However, the system NPSHa is the same for all pumps at the suction header.
@@ -397,7 +397,7 @@ class PumpAnalysis:
         for name in pump_names:
              if name in self.pump_curves and 'npshr' in self.pump_curves[name]:
                  pump = self.pump_curves[name]
-                 npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0)
+                 npshr_interp = interp1d(pump['flow_rate'], pump['npshr'], kind='cubic', bounds_error=False, fill_value=0.0)
                  # Need NPSHr at the flow rate *this pump* provides at the given combined head
                  npshr_at_head_this_pump = np.zeros(num_points)
                  for i, head_val in enumerate(combined_head_range):
@@ -414,9 +414,9 @@ class PumpAnalysis:
                             if res.success:
                                 npshr_at_head_this_pump[i] = npshr_interp(res.x[0])
                             else:
-                                npshr_at_head_this_pump[i] = 0
+                                npshr_at_head_this_pump[i] = 0.0
                      except:
-                         npshr_at_head_this_pump[i] = 0
+                         npshr_at_head_this_pump[i] = 0.0
 
                  combined_npshr = np.maximum(combined_npshr, npshr_at_head_this_pump) # Take the maximum NPSHr at each head
 
@@ -429,10 +429,10 @@ class PumpAnalysis:
         combined_npshr = combined_npshr[sorted_indices]
 
         # Clean up negative values that might result from interpolation extrapolation
-        combined_flow[combined_flow < 0] = 0
-        combined_head[combined_head < 0] = 0
-        combined_efficiency[combined_efficiency < 0] = 0
-        combined_npshr[combined_npshr < 0] = 0
+        combined_flow[combined_flow < 0] = 0.0
+        combined_head[combined_head < 0] = 0.0
+        combined_efficiency[combined_efficiency < 0] = 0.0
+        combined_npshr[combined_npshr < 0] = 0.0
 
 
         return {
@@ -473,23 +473,23 @@ class PumpAnalysis:
              return None # Cannot interpolate with less than 2 points
 
         head_curve_interp = interp1d(pump['flow_rate'], pump['head'],
-                                     kind='cubic', bounds_error=False, fill_value=(pump['head'][0], pump['head'][-1]))
+                                     kind='cubic', bounds_error=False, fill_value=(float(pump['head'][0]), float(pump['head'][-1])))
 
         # Handle cases where efficiency or NPSHr might not be available in the dict (e.g., for combined curves)
-        eff_data = pump.get('efficiency', np.zeros_like(pump['flow_rate']))
-        npshr_data = pump.get('npshr', np.zeros_like(pump['flow_rate']))
+        eff_data = pump.get('efficiency', np.zeros_like(pump['flow_rate'], dtype=float)) # Ensure float type
+        npshr_data = pump.get('npshr', np.zeros_like(pump['flow_rate'], dtype=float)) # Ensure float type
 
         eff_curve_interp = interp1d(pump['flow_rate'], eff_data,
-                                    kind='cubic', bounds_error=False, fill_value=(eff_data[0], eff_data[-1]) if eff_data.size > 0 else (0,0))
+                                    kind='cubic', bounds_error=False, fill_value=(float(eff_data[0]), float(eff_data[-1])) if eff_data.size > 0 else (0.0,0.0))
         npshr_curve_interp = interp1d(pump['flow_rate'], npshr_data,
-                                      kind='cubic', bounds_error=False, fill_value=(npshr_data[0], npshr_data[-1]) if npshr_data.size > 0 else (0,0))
+                                      kind='cubic', bounds_error=False, fill_value=(float(npshr_data[0]), float(npshr_data[-1])) if npshr_data.size > 0 else (0.0,0.0))
 
 
         def head_difference(flow_rate):
             """Function to minimize: difference between pump head and system head"""
             # Ensure flow_rate is within reasonable bounds or interpolation is handled well
             # Use clip to keep flow within the pump's defined range for interpolation
-            flow_rate = np.clip(flow_rate, min(pump['flow_rate']), max(pump['flow_rate']))
+            flow_rate = np.clip(flow_rate, float(min(pump['flow_rate'])), float(max(pump['flow_rate']))) # Ensure bounds are floats
             return head_curve_interp(flow_rate) - self.calculate_system_curve(flow_rate)
 
         # Find the root (where head_difference is zero)
@@ -497,7 +497,7 @@ class PumpAnalysis:
         try:
             # Define a search interval for the root (flow rate)
             # A reasonable interval is the range of flow rates for the pump curve
-            flow_min, flow_max = min(pump['flow_rate']), max(pump['flow_rate'])
+            flow_min, flow_max = float(min(pump['flow_rate'])), float(max(pump['flow_rate'])) # Ensure bounds are floats
 
             # Check if the system curve intersects the pump curve within the range
             # Evaluate head difference at min and max flow
@@ -513,7 +513,7 @@ class PumpAnalysis:
                       st.warning(f"Root finder failed to converge for {pump_name}. Minimizing absolute difference instead.")
                       def objective(flow_rate):
                          return abs(head_difference(flow_rate))
-                      result = minimize(objective, x0=np.mean(pump['flow_rate']),
+                      result = minimize(objective, x0=float(np.mean(pump['flow_rate'])), # Ensure initial guess is float
                                         bounds=[(flow_min, flow_max)])
                       if not result.success:
                          st.error(f"Failed to find operating point for {pump_name} using minimization (fallback).")
@@ -526,7 +526,7 @@ class PumpAnalysis:
                  st.warning(f"Root finder did not find a simple intersection for {pump_name}. Minimizing absolute difference instead.")
                  def objective(flow_rate):
                      return abs(head_difference(flow_rate))
-                 result = minimize(objective, x0=np.mean(pump['flow_rate']),
+                 result = minimize(objective, x0=float(np.mean(pump['flow_rate'])), # Ensure initial guess is float
                                    bounds=[(flow_min, flow_max)])
                  if not result.success:
                      st.error(f"Failed to find operating point for {pump_name} using minimization.")
@@ -535,7 +535,7 @@ class PumpAnalysis:
 
 
             # Ensure operating flow is within interpolation range (or bounds if using clip)
-            operating_flow = np.clip(operating_flow, min(pump['flow_rate']), max(pump['flow_rate']))
+            operating_flow = np.clip(operating_flow, float(min(pump['flow_rate'])), float(max(pump['flow_rate']))) # Ensure bounds are floats
 
             operating_head = head_curve_interp(operating_flow)
             operating_eff = eff_curve_interp(operating_flow)
@@ -575,7 +575,7 @@ class PumpAnalysis:
                 'friction_loss_suction_m': float(friction_loss_suction),
                 'minor_loss_discharge_m': float(minor_loss_discharge),
                 'minor_loss_suction_m': float(minor_loss_suction),
-                'total_static_head_m': self.system['static_head_discharge'] - self.system['static_head_suction']
+                'total_static_head_m': float(self.system['static_head_discharge'] - self.system['static_head_suction']) # Ensure float
             }
 
         except Exception as e:
@@ -586,12 +586,12 @@ class PumpAnalysis:
     def calculate_power(self, flow_rate_m3h, head_m, efficiency_pct):
         """Calculate required pump power in kW"""
         # This function can handle scalar or array inputs for flow, head, and efficiency
-        flow_rate_m3s = self.convert_flow_rate(np.array(flow_rate_m3h), 'm3/s') # Ensure numpy array for element-wise ops
-        head_m = np.array(head_m)
-        efficiency_pct = np.array(efficiency_pct)
+        flow_rate_m3s = self.convert_flow_rate(np.array(flow_rate_m3h, dtype=float), 'm3/s') # Ensure numpy array of floats
+        head_m = np.array(head_m, dtype=float) # Ensure numpy array of floats
+        efficiency_pct = np.array(efficiency_pct, dtype=float) # Ensure numpy array of floats
 
         # Avoid division by zero or negative efficiency
-        efficiency_decimal = np.where(efficiency_pct > 0, efficiency_pct / 100, np.inf)
+        efficiency_decimal = np.where(efficiency_pct > 0, efficiency_pct / 100.0, np.inf) # Ensure float division
 
         # Power (W) = density * g * flow_rate (m³/s) * head (m) / efficiency (decimal)
         # Handle cases where efficiency_decimal is inf (efficiency is 0 or negative)
@@ -600,9 +600,9 @@ class PumpAnalysis:
                               np.inf)
 
         # Ensure power is non-negative
-        power_watt = np.maximum(power_watt, 0)
+        power_watt = np.maximum(power_watt, 0.0) # Ensure float
 
-        return power_watt / 1000 # Convert Watts to kW
+        return power_watt / 1000.0 # Convert Watts to kW - Ensure float division
 
 
     def optimize_pump_selection(self, required_flow_m3h):
@@ -698,15 +698,15 @@ class PumpAnalysis:
              return None # Cannot interpolate with less than 2 points
 
         head_curve_interp = interp1d(pump['flow_rate'], pump['head'],
-                                     kind='cubic', bounds_error=False, fill_value=(pump['head'][0], pump['head'][-1]))
+                                     kind='cubic', bounds_error=False, fill_value=(float(pump['head'][0]), float(pump['head'][-1])))
         # Handle cases where efficiency or NPSHr might not be available in the dict (e.g., for combined curves)
-        eff_data = pump.get('efficiency', np.zeros_like(pump['flow_rate']))
-        npshr_data = pump.get('npshr', np.zeros_like(pump['flow_rate']))
+        eff_data = pump.get('efficiency', np.zeros_like(pump['flow_rate'], dtype=float))
+        npshr_data = pump.get('npshr', np.zeros_like(pump['flow_rate'], dtype=float))
 
         eff_curve_interp = interp1d(pump['flow_rate'], eff_data,
-                                    kind='cubic', bounds_error=False, fill_value=(eff_data[0], eff_data[-1]) if eff_data.size > 0 else (0,0))
+                                    kind='cubic', bounds_error=False, fill_value=(float(eff_data[0]), float(eff_data[-1])) if eff_data.size > 0 else (0.0,0.0))
         npshr_curve_interp = interp1d(pump['flow_rate'], npshr_data,
-                                      kind='cubic', bounds_error=False, fill_value=(npshr_data[0], npshr_data[-1]) if npshr_data.size > 0 else (0,0))
+                                      kind='cubic', bounds_error=False, fill_value=(float(npshr_data[0]), float(npshr_data[-1])) if npshr_data.size > 0 else (0.0,0.0))
 
 
         pump_head = head_curve_interp(plot_flow_range)
@@ -803,17 +803,17 @@ pump_system = st.session_state.pump_system
 st.sidebar.header("System Parameters")
 
 with st.sidebar.expander("Fluid Properties"):
-    pump_system.fluid['density'] = st.number_input("Density (kg/m³)", value=pump_system.fluid['density'], min_value=1.0)
+    pump_system.fluid['density'] = st.number_input("Density (kg/m³)", value=pump_system.fluid['density'], min_value=1.0, format="%f") # Added format
     pump_system.fluid['viscosity'] = st.number_input("Viscosity (Pa·s)", value=pump_system.fluid['viscosity'], format="%e", min_value=0.0)
-    pump_system.fluid['vapor_pressure'] = st.number_input("Vapor Pressure (Pa)", value=pump_system.fluid['vapor_pressure'], min_value=0.0)
+    pump_system.fluid['vapor_pressure'] = st.number_input("Vapor Pressure (Pa)", value=pump_system.fluid['vapor_pressure'], min_value=0.0, format="%f") # Added format
 
 with st.sidebar.expander("Static Heads"):
-    pump_system.system['static_head_discharge'] = st.number_input("Discharge Static Head (m)", value=pump_system.system['static_head_discharge'])
-    pump_system.system['static_head_suction'] = st.number_input("Suction Static Head (m)", value=pump_system.system['static_head_suction'])
+    pump_system.system['static_head_discharge'] = st.number_input("Discharge Static Head (m)", value=pump_system.system['static_head_discharge'], format="%f") # Added format
+    pump_system.system['static_head_suction'] = st.number_input("Suction Static Head (m)", value=pump_system.system['static_head_suction'], format="%f") # Added format
 
 with st.sidebar.expander("Discharge Pipe"):
-    pump_system.system['pipe_diameter_discharge'] = st.number_input("Diameter (m)", value=pump_system.system['pipe_diameter_discharge'], min_value=0.001)
-    pump_system.system['pipe_length_discharge'] = st.number_input("Length (m)", value=pump_system.system['pipe_length_discharge'], min_value=0.0)
+    pump_system.system['pipe_diameter_discharge'] = st.number_input("Diameter (m)", value=pump_system.system['pipe_diameter_discharge'], min_value=0.001, format="%f") # Added format
+    pump_system.system['pipe_length_discharge'] = st.number_input("Length (m)", value=pump_system.system['pipe_length_discharge'], min_value=0.0, format="%f") # Added format
     pump_system.system['pipe_roughness'] = st.number_input("Roughness (m)", value=pump_system.system['pipe_roughness'], format="%e", min_value=0.0)
 
     st.subheader("Discharge Minor Losses (Quantity)")
@@ -832,8 +832,8 @@ with st.sidebar.expander("Discharge Pipe"):
 
 
 with st.sidebar.expander("Suction Pipe"):
-    pump_system.system['pipe_diameter_suction'] = st.number_input("Diameter (m) ", value=pump_system.system['pipe_diameter_suction'], min_value=0.001)
-    pump_system.system['pipe_length_suction'] = st.number_input("Length (m) ", value=pump_system.system['pipe_length_suction'], min_value=0.0)
+    pump_system.system['pipe_diameter_suction'] = st.number_input("Diameter (m) ", value=pump_system.system['pipe_diameter_suction'], min_value=0.001, format="%f") # Added format
+    pump_system.system['pipe_length_suction'] = st.number_input("Length (m) ", value=pump_system.system['pipe_length_suction'], min_value=0.0, format="%f") # Added format
     # Suction pipe often has the same roughness as discharge, but can be made separate if needed
     # pump_system.system['pipe_roughness_suction'] = st.number_input("Roughness (m) ", value=pump_system.system['pipe_roughness'], format="%e", min_value=0.0)
 
@@ -884,7 +884,7 @@ elif pump_mode == "Pumps in Parallel":
 
 
 st.sidebar.header("Optimization")
-required_flow_optimize = st.sidebar.number_input("Required Flow for Optimization (m³/h)", value=35.0, min_value=0.0)
+required_flow_optimize = st.sidebar.number_input("Required Flow for Optimization (m³/h)", value=35.0, min_value=0.0, format="%f") # Added format
 run_optimization_button = st.sidebar.button("Run Optimization")
 
 
@@ -895,15 +895,17 @@ if selected_pump_info:
     st.subheader(f"Analyzing: {selected_pump_info.get('name', selected_pump_info) if isinstance(selected_pump_info, dict) else selected_pump_info}")
 
     if st.button("Calculate Operating Point"):
-        op_point, fig_head, fig_npsh = pump_system.plot_operating_point(selected_pump_info)
-        if op_point:
+        op_point_result = pump_system.plot_operating_point(selected_pump_info)
+        if op_point_result:
+            op_point, fig_head, fig_npsh = op_point_result
             pump_system.report_operating_point(op_point)
             st.pyplot(fig_head)
             st.pyplot(fig_npsh)
+            plt.close(fig_head) # Close figures to free memory
+            plt.close(fig_npsh)
         else:
             st.error("Failed to calculate or plot the operating point.")
-        plt.close(fig_head) # Close figures to free memory
-        plt.close(fig_npsh)
+
 else:
     st.info("Please select a pump or combination from the sidebar to calculate the operating point.")
 
